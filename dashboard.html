@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VerifAI SOC Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img src="VerifAI Logo.png" alt="VerifAI">
+        <div>
+          <div class="eyebrow">SECURITY OPERATIONS CENTER</div>
+          <h1>Shadow AI Monitoring Tool</h1>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="export-csv" class="secondary">Export CSV</button>
+        <button id="export-json" class="secondary">Export JSON</button>
+        <button id="save-pdf" class="primary">Print / Save PDF</button>
+      </div>
+    </header>
+
+    <main>
+      <div id="live-announcement" class="live-announcement" role="status" aria-live="polite" hidden></div>
+      <section class="connection panel">
+        <div>
+          <h2>Cross-browser local connection</h2>
+          <p id="connection-status" role="status">Checking automatic connection. Without the bridge, local extension monitoring remains available.</p>
+        </div>
+        <form id="connection-form">
+          <button class="primary" type="submit">Connect automatically</button>
+        </form>
+      </section>
+      <section id="extension-diagnostics" class="panel" hidden>
+        <h2>This browser's extension</h2>
+        <p id="extension-diagnostics-status" role="status"></p>
+        <button id="refresh-diagnostics" class="secondary" type="button">Check blocking and connection</button>
+        <p>Automatic browser-managed updates require a published extension. Unpacked copies need installer updates and a reload. Temporary Firefox add-ons are removed when Firefox closes.</p>
+      </section>
+
+      <section class="summary" aria-label="Summary">
+        <article class="metric">
+          <span class="metric-label">Recorded events</span>
+          <strong id="event-count">0</strong>
+        </article>
+        <article class="metric">
+          <span class="metric-label">Approved-agent visits</span>
+          <strong id="visit-count">0</strong>
+        </article>
+        <article class="metric">
+          <span class="metric-label">Blocked attempts</span>
+          <strong id="blocked-count">0</strong>
+        </article>
+        <article class="metric">
+          <span class="metric-label">Left / timed out</span>
+          <strong id="left-count">0</strong>
+        </article>
+        <article class="metric">
+          <span class="metric-label">Approved without prompt</span>
+          <strong>Copilot · Gemini · Perplexity</strong>
+        </article>
+      </section>
+
+      <nav class="actions panel" role="tablist" aria-label="Activity views">
+        <button id="activity-tab" role="tab" aria-selected="true" aria-controls="activity-panel" type="button">AI Activities</button>
+        <button id="redaction-tab" role="tab" aria-selected="false" aria-controls="redaction-panel" type="button">Redacted PII</button>
+      </nav>
+      <section id="activity-panel" class="panel" role="tabpanel" aria-labelledby="activity-tab">
+        <div class="panel-heading">
+          <div>
+            <h2>AI activity and approval events</h2>
+            <p>Approved AI-site visits, blocked attempts and historical JIT choices. No page or prompt contents are collected.</p>
+          </div>
+          <label class="filter">
+            Filter by site or browser
+            <input id="filter-site" type="search" placeholder="e.g. huggingface.co or Brave">
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><button class="sort" data-sort="timestamp">Date and time ↕</button></th>
+                <th><button class="sort" data-sort="eventType">Activity ↕</button></th>
+                <th><button class="sort" data-sort="site">AI site ↕</button></th>
+                <th><button class="sort" data-sort="browser">Browser ↕</button></th>
+                <th><button class="sort" data-sort="status">Outcome ↕</button></th>
+                <th><button class="sort" data-sort="approvedAgent">Approved agent ↕</button></th>
+              </tr>
+            </thead>
+            <tbody id="events-body"></tbody>
+          </table>
+          <div id="empty-state" class="empty" hidden>No AI activity events match this filter.</div>
+        </div>
+      </section>
+      <section id="redaction-panel" class="panel" role="tabpanel" aria-labelledby="redaction-tab" hidden>
+        <h2>Redacted PII</h2>
+        <p>Redaction events: <strong id="redaction-total">0</strong>. Metadata only: sensitive values and prompt text are never recorded.</p>
+        <p>An accepted editor edit is not proof of network-level protection or regulatory de-identification.</p>
+        <label>Filter by site, browser or category <input id="redaction-filter" type="search"></label>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date and time</th><th>AI site</th><th>Browser</th><th>Categories</th><th>Items</th><th>Editor result</th></tr></thead>
+            <tbody id="redaction-events-body"></tbody>
+          </table>
+          <p id="redaction-empty">No redaction events match this filter.</p>
+        </div>
+      </section>
+      <footer>Shared events are stored on this computer. Install and connect the extension in each browser you want monitored; native AI apps and browsers without the extension are not observed.</footer>
+    </main>
+    <script src="redaction-dashboard.js"></script>
+    <script src="dashboard.js"></script>
+  </body>
+</html>

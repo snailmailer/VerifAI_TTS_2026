@@ -1,0 +1,232 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>VerifAI synthetic redaction tests</title>
+<script>
+  const events = [];
+  const errors = [];
+  console.error = (...args) => errors.push(args.join(" "));
+  window.addEventListener("error", (event) => errors.push(event.message));
+  window.chrome = window.chrome || {};
+  window.chrome.runtime = {
+    sendMessage(message, callback) {
+      events.push(message.event);
+      callback({ ok: true, shared: true });
+    }
+  };
+</script>
+<script src="redaction-core.js"></script>
+<script src="redaction.js"></script>
+<body>
+<pre id="result">RUNNING</pre>
+<script>
+  const results = [];
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 25));
+  // The editor edit is asynchronous; a reported event marks the end of one redaction cycle.
+  async function settled(before, timeout = 3000) {
+    const started = Date.now();
+    while (events.length <= before) {
+      if (Date.now() - started > timeout) throw new Error("redaction did not complete");
+      await tick();
+    }
+    await tick();
+  }
+  // The editor edit is asynchronous; a reported event marks the end of one redaction cycle.
+  async function settled(before, timeout = 3000) {
+    const started = Date.now();
+    while (events.length <= before) {
+      if (Date.now() - started > timeout) throw new Error("redaction did not complete");
+      await tick();
+    }
+    await tick();
+  }
+  function check(condition, message) {
+    if (!condition) throw new Error(message);
+  }
+  async function run(name, test) {
+    const fixture = document.createElement("section");
+    document.body.append(fixture);
+    try {
+      await test(fixture);
+      results.push({ name, ok: true });
+    } catch (error) {
+      results.push({ name, ok: false, error: error.message, errors: [...errors],
+        markup: fixture.innerHTML, events: [...events] });
+    } finally {
+      fixture.remove();
+    }
+  }
+  const record = [
+    "Resident: Émile-André Exemple", "SIN: 987-654-321",
+    "Health Card Number (OHIP): 9999-888-777-ZZ",
+    "Driver's License: Z9876-54321-09876",
+    "Address: 200 Example St W, Toronto, ON M5V 0A1"
+  ].join("\n");
+  const leaks = ["Exemple", "987-654-321", "9999", "Z9876", "Toronto", "M5V", "alex", "123456789"];
+  function clean(text) {
+    return leaks.every((value) => !text.includes(value));
+  }
+  function placeCaret(editor) {
+    editor.focus();
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  async function paste(editor, text) {
+    const before = events.length;
+    if (editor.value !== undefined) {
+      editor.focus();
+      editor.value = text;
+      editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertFromPaste", data: text }));
+    } else {
+      placeCaret(editor);
+      document.execCommand("insertText", false, text);
+      editor.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertFromPaste" }));
+    }
+    if (window.VerifAIRedaction.redactSensitiveText(text).count > 0) await settled(before);
+    else await tick();
+  }
+  function typeInto(editor, text) {
+    if (editor.value !== undefined) {
+      editor.focus();
+      for (const character of text) {
+        editor.value += character;
+        editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: character }));
+      }
+      return;
+    }
+    placeCaret(editor);
+    for (const character of text) document.execCommand("insertText", false, character);
+  }
+  (async () => {
+    await run("pasted textarea record is redacted and reported without values", async (fixture) => {
+      fixture.innerHTML = "<textarea></textarea>";
+      const editor = fixture.firstChild;
+      let state;
+      document.addEventListener("input", (event) => { if (event.target === editor) state = editor.value; });
+      await paste(editor, "Name: alex doe. SSN: 123456789. Birthday is on October 25, 1990.");
+      check(clean(editor.value), "PII remained");
+      check(state === editor.value, "framework state diverged");
+      check(events.at(-1).editApplied, "successful edit was not reported");
+      check(!JSON.stringify(events).includes("alex"), "prompt leaked into metadata");
+    });
+    await run("typed text is left alone until submission, then redacted and submission cancelled", async (fixture) => {
+      fixture.innerHTML = "<textarea></textarea>";
+      const editor = fixture.firstChild;
+      typeInto(editor, "Resident: Émile-André Exemple");
+      await tick();
+      check(editor.value === "Resident: Émile-André Exemple", "typing was altered before submission");
+      let before = events.length;
+      const delivered = editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      check(!delivered, "Enter was not cancelled");
+      await settled(before);
+      check(clean(editor.value) && editor.value.includes("[REDACTED: NAME]"), "typed name not redacted on Enter");
+      check(editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })),
+        "second Enter on clean text was blocked");
+    });
+    await run("rich editor replaces only matched ranges and keeps paragraph structure", async (fixture) => {
+      fixture.innerHTML = '<div contenteditable="true" role="textbox"></div>';
+      const editor = fixture.firstChild;
+      placeCaret(editor);
+      for (const [index, line] of record.split("\n").entries()) {
+        if (index) document.execCommand("insertParagraph");
+        document.execCommand("insertText", false, line);
+      }
+      await tick();
+      check(editor.innerText.includes("Exemple"), "typing was altered before submission");
+      const before = events.length;
+      const delivered = editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      check(!delivered, "Enter was not cancelled");
+      await settled(before);
+      const text = editor.innerText;
+      check(clean(text), "rich editor still contains resident data");
+      check((text.match(/\[REDACTED:/g) || []).length === 5, "not all five fields redacted");
+      check(text.split("\n").filter(Boolean).length === 5, "paragraph structure changed: " + JSON.stringify(text));
+      check(events.at(-1).redactionCount === 5 && events.at(-1).editApplied, "rich editor result misreported");
+    });
+    await run("custom send button without a form uses the last composer", async (fixture) => {
+      fixture.innerHTML = '<div contenteditable="true"></div><div contenteditable="true" aria-hidden="true" style="position:absolute;left:-9999px"></div>' +
+        '<button type="button" aria-label="Send message">Go</button>';
+      const editor = fixture.firstChild;
+      placeCaret(editor);
+      document.execCommand("insertText", false, "SIN: 987-654-321");
+      await tick();
+      const before = events.length;
+      const delivered = fixture.lastChild.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      check(!delivered, "custom send was not cancelled");
+      await settled(before);
+      check(clean(editor.innerText), "custom send missed PII");
+    });
+    await run("open shadow editor is protected on paste", async (fixture) => {
+      const root = fixture.attachShadow({ mode: "open" });
+      root.innerHTML = '<div contenteditable="plaintext-only"></div>';
+      const editor = root.firstChild;
+      placeCaret(editor);
+      document.execCommand("insertText", false, "test.person@example.com");
+      const before = events.length;
+      editor.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertFromPaste" }));
+      await settled(before);
+      check(!editor.innerText.includes("@"), "shadow editor not redacted");
+    });
+    await run("failed editor transaction blocks Enter and reports failure", async (fixture) => {
+      fixture.innerHTML = '<div contenteditable="true"></div>';
+      const editor = fixture.firstChild;
+      placeCaret(editor);
+      document.execCommand("insertText", false, "test.person@example.com");
+      const original = document.execCommand;
+      document.execCommand = () => false;
+      try {
+        const before = events.length;
+        const delivered = editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+        check(!delivered, "failed edit allowed submission");
+        await settled(before);
+        check(events.at(-1).editApplied === false, "failed edit reported success");
+      } finally {
+        document.execCommand = original;
+      }
+    });
+    await run("form submit is sanitized before page handlers", async (fixture) => {
+      fixture.innerHTML = '<form><textarea></textarea><button type="submit">Go</button></form>';
+      const form = fixture.firstChild;
+      const editor = form.firstChild;
+      typeInto(editor, "DOB: 10/25/1990");
+      let reachedSite = false;
+      form.addEventListener("submit", () => { reachedSite = true; });
+      const before = events.length;
+      check(!form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })), "form submit was not cancelled");
+      await settled(before);
+      check(!reachedSite && !editor.value.includes("1990"), "site saw sensitive submission");
+    });
+    await run("clean text and password fields are untouched", async (fixture) => {
+      fixture.innerHTML = '<textarea></textarea><input type="password">';
+      const editor = fixture.firstChild;
+      const password = fixture.lastChild;
+      const before = events.length;
+      await paste(editor, "Summarize this public report.");
+      password.value = "test.person@example.com";
+      password.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertFromPaste" }));
+      await tick();
+      check(editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })), "clean Enter blocked");
+      check(editor.value === "Summarize this public report.", "clean input changed");
+      check(password.value === "test.person@example.com", "password modified");
+      check(events.length === before, "non-PII input reported as redaction");
+    });
+    await run("pasted Canadian record into rich editor is fully redacted", async (fixture) => {
+      fixture.innerHTML = '<div contenteditable="true"></div>';
+      const editor = fixture.firstChild;
+      await paste(editor, record);
+      check(clean(editor.innerText), "pasted resident data remained: " + JSON.stringify(editor.innerText));
+      check(events.at(-1).redactionCount === 5 && events.at(-1).editApplied, "paste result misreported");
+      check(!JSON.stringify(events).includes("Exemple"), "resident data leaked into telemetry");
+    });
+    const payload = JSON.stringify({ engine: navigator.userAgent, results });
+    document.getElementById("result").textContent = payload;
+    try {
+      await fetch("/result", { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true });
+    } catch (error) {
+      document.getElementById("result").textContent = JSON.stringify({ transportError: error.message, results });
+    }
+  })();
+</script>

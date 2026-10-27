@@ -1,0 +1,44 @@
+# Dependencies and build outputs
+node_modules/
+dist/
+downloads/
+MVP/
+VerifAI MVP/
+Installer/
+FirefoxExtension-05*/
+generated/*.log
+
+# Runtime data, logs and machine-specific state (never publish)
+data/
+EVENT LOGS/
+*.log
+*token*
+native-allowed.json
+state.json
+approval-events.json
+activity-storage.json
+
+# Keys, signing material and packaged binaries
+*.pem
+*.key
+*.crx
+*.xpi
+*.exe
+*.zip
+
+# Large media: raw recordings go to GitHub Releases, keep only the captioned demo
+*.mp4
+!VerifAI Recorded MVP Demo.mp4
+
+# Scratch / session artefacts
+_shot.png
+deployment/introspect-*.ps1
+deployment/test-load-one.ps1
+deployment/demo-load-unpacked.ps1
+.vscode/
+Thumbs.db
+.DS_Store
+
+# Packaged archives
+*.7z
+

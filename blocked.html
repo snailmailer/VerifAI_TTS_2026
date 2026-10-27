@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI website blocked - VerifAI</title>
+    <link rel="stylesheet" href="dashboard.css">
+  </head>
+  <body>
+    <main>
+      <section class="panel">
+        <h1>This AI website is blocked by company policy.</h1>
+        <p id="blocked-site"></p>
+        <p>Only Copilot, Gemini and Perplexity are approved. Login and download pages on catalogued blocked domains are also blocked.</p>
+        <p>No prompt text is transferred to another service.</p>
+        <div id="approved-links" class="actions"></div>
+        <p id="report-status" role="status">Recording the blocked attempt...</p>
+        <p>Use the VerifAI extension toolbar icon to open the authenticated dashboard.</p>
+      </section>
+    </main>
+    <script src="ai-policy.js"></script>
+    <script src="blocked.js"></script>
+  </body>
+</html>

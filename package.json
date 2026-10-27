@@ -1,0 +1,20 @@
+{
+  "name": "verifai-shadow-ai-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "devDependencies": {
+    "@swc/core": "^1.15.0",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "build:policy": "node build-policy.js",
+    "build:ui": "node build-ui.js",
+    "typecheck": "tsc --noEmit",
+    "start": "node local-service.js",
+    "build:firefox": "node build-firefox.js",
+    "build:mvp": "node build-mvp.js",
+    "install:windows": "powershell -NoProfile -File .\\install-windows.ps1",
+    "test": "node --test"
+  }
+}
